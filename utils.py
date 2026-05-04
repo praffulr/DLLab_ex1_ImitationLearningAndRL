@@ -1,7 +1,9 @@
 import numpy as np
+import torch
 
-LEFT = 1
-RIGHT = 2
+#Changing the encoding to match with the action space in https://gymnasium.farama.org/environments/box2d/car_racing/#action-space
+LEFT = 2
+RIGHT = 1
 STRAIGHT = 0
 ACCELERATE = 3
 BRAKE = 4
@@ -21,9 +23,9 @@ def action_to_id(a):
     Important: this method only works if you recorded data pressing only one key at a time!
     """
     if all(a == [-1.0, 0.0, 0.0]):
-        return LEFT  # LEFT: 1
+        return LEFT  # LEFT: 2
     elif all(a == [1.0, 0.0, 0.0]):
-        return RIGHT  # RIGHT: 2
+        return RIGHT  # RIGHT: 1
     elif all(a == [0.0, 1.0, 0.0]):
         return ACCELERATE  # ACCELERATE: 3
     elif all(a == [0.0, 0.0, 0.2]):
@@ -49,7 +51,10 @@ def id_to_action(action_id, max_speed=0.8):
         return np.array([0.0, 0.0, 0.1])
     else:
         return np.array([0.0, 0.0, 0.0])
-
+    
+def convert (nparray):
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    return torch.tensor(nparray, dtype= torch.float32).to(device)
 
 class EpisodeStats:
     """

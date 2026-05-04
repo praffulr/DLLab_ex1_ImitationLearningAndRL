@@ -8,6 +8,9 @@ def soft_update(target, source, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
+def convert (nparray):
+    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+    return torch.tensor(nparray, dtype= torch.float32).to(device)
 
 class DQNAgent:
 
@@ -18,7 +21,7 @@ class DQNAgent:
         num_actions,
         gamma=0.95,
         batch_size=64,
-        epsilon=0.1,
+        epsilon=0.25,
         tau=0.01,
         lr=1e-4,
         history_length=0,
@@ -38,12 +41,15 @@ class DQNAgent:
            lr: learning rate of the optimizer
         """
         # setup networks
-        self.Q = Q.cuda()
-        self.Q_target = Q_target.cuda()
+        # self.Q = Q.cuda()
+        # self.Q_target = Q_target.cuda()
+        self.device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+        self.Q = Q.to(self.device)
+        self.Q_target = Q_target.to(self.device)
         self.Q_target.load_state_dict(self.Q.state_dict())
 
         # define replay buffer
-        self.replay_buffer = ReplayBuffer(history_length)
+        self.replay_buffer = ReplayBuffer()
 
         # parameters
         self.batch_size = batch_size
@@ -70,6 +76,42 @@ class DQNAgent:
         #       2.3 call soft update for target network
         #           soft_update(self.Q_target, self.Q, self.tau)
 
+        # 1 - Replay Buffer
+        self.replay_buffer.add_transition(state, action, next_state, reward, terminal)
+        #2.1 - TD_target
+        #2.2 - update Q
+
+        #2.0 Sample batches from Replay Buffer
+        batch = self.replay_buffer.next_batch(batch_size=64)
+        batch = tuple(map(convert, batch))
+        batch_states,batch_actions,batch_next_states,batch_rewards,batch_dones = batch
+
+
+        #Estimates
+        action_ids = batch_actions.unsqueeze(dim=1).to(torch.int64)
+        q_values = self.Q(batch_states)
+        # print ("Q_values shape - ", q_values.shape)
+        # print ("Batch_actions shape - ", batch_actions.shape)
+        # print ("Action_ids shape - ", action_ids.shape)
+        # estimates = q_values[:, batch_actions]
+        # print ("Estimates shape - ", estimates.shape)
+        estimates = torch.gather(input = q_values, dim = 1, index = action_ids).squeeze()
+
+
+        #Targets
+        best_q_values = torch.max(self.Q_target(batch_next_states), axis = 1)[0]
+        # print ("best_q_values - ", best_q_values.shape)
+        targets = batch_rewards + self.gamma*(1-batch_dones)*best_q_values
+
+        loss = self.loss_function(estimates, targets.detach())
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        #2.3
+        soft_update(self.Q_target, self.Q, self.tau)
+
+
     def act(self, state, deterministic):
         """
         This method creates an epsilon-greedy policy based on the Q-function approximator and epsilon (probability to select a random action)
@@ -83,14 +125,19 @@ class DQNAgent:
         if deterministic or r > self.epsilon:
             pass
             # TODO: take greedy action (argmax)
-            # action_id = ...
+            action_vals = self.Q(torch.from_numpy(state).to(self.device))
+            action_id = torch.argmax(action_vals).item()
+            # print ("Greedy action vals - ", action_vals)
+            print ("Greedy action_id - ", action_id)
+
         else:
             pass
             # TODO: sample random action
             # Hint for the exploration in CarRacing: sampling the action from a uniform distribution will probably not work.
             # You can sample the agents actions with different probabilities (need to sum up to 1) so that the agent will prefer to accelerate or going straight.
             # To see how the agent explores, turn the rendering in the training on and look what the agent is doing.
-            # action_id = ...
+            action_id = np.random.randint(low=0, high= self.num_actions)
+            print ("Random action_id - ", action_id)
 
         return action_id
 

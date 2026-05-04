@@ -14,6 +14,8 @@ from utils import EpisodeStats, rgb2gray
 from utils import *
 from agent.dqn_agent import DQNAgent
 
+from agent.networks import CNN
+
 
 def run_episode(
     env,
@@ -51,8 +53,17 @@ def run_episode(
 
         # TODO: get action_id from agent
         # Hint: adapt the probabilities of the 5 actions for random sampling so that the agent explores properly.
-        # action_id = agent.act(...)
-        # action = your_id_to_action_method(...)
+        # Action - ID
+        # Nothing do - 0
+        # Right - 1
+        # Left - 2
+        # Gas - 3
+        #Brake - 4
+
+        action_id = agent.act(state, deterministic=False)
+
+
+        action = id_to_action(action_id, max_speed=0.8)
 
         # Hint: frame skipping might help you to get better results.
         reward = 0
@@ -110,9 +121,16 @@ def train_online(
             "train/right",
             "train/accel",
             "train/brake",
+            "eval/episode_reward",
+            "eval/straight",
+            "eval/left",
+            "eval/right",
+            "eval/accel",
+            "eval/brake",
         ],
     )
 
+    best_eval_reward = 0
     for i in range(1, num_episodes + 1):
         print("epsiode %d" % i)
 
@@ -141,9 +159,34 @@ def train_online(
         # TODO: evaluate your agent every 'eval_cycle' episodes using run_episode(env, agent, deterministic=True, do_training=False) to
         # check its performance with greedy actions only. You can also use tensorboard to plot the mean episode reward.
         # ...
-        # if i % eval_cycle == 0:
-        #    for j in range(num_eval_episodes):
-        #       ...
+        if i % eval_cycle == 0:
+            sum_eval_reward = 0
+            for j in range(num_eval_episodes):
+                print ("Episode #",i,"Eval_Episode #",j)
+                stats = run_episode(
+                    env,
+                    agent,
+                    max_timesteps=max_timesteps,
+                    deterministic=True,
+                    do_training=False,
+                )
+                sum_eval_reward += stats.episode_reward
+                tensorboard.write_episode_data(
+                    i*eval_cycle + j,
+                    eval_dict={
+                        "eval/episode_reward": stats.episode_reward,
+                        "eval/straight": stats.get_action_usage(STRAIGHT),
+                        "eval/left": stats.get_action_usage(LEFT),
+                        "eval/right": stats.get_action_usage(RIGHT),
+                        "eval/accel": stats.get_action_usage(ACCELERATE),
+                        "eval/brake": stats.get_action_usage(BRAKE),
+                    },
+                )
+            #store best eval model
+            if sum_eval_reward > best_eval_reward:
+                print ("New Best eval reward - ", sum_eval_reward, best_eval_reward)
+                best_eval_reward = sum_eval_reward
+                agent.save(os.path.join(model_dir, "dqn_agent_carracing_besteval.pt"))
 
         # store model.
         if i % eval_cycle == 0 or (i >= num_episodes - 1):
@@ -164,6 +207,9 @@ if __name__ == "__main__":
     env = gym.make("CarRacing-v3", render_mode="rgb_array")
 
     # TODO: Define Q network, target network and DQN agent
-    # ...
+    q = CNN()
+    q_target = CNN()
+    # 2. init DQNAgent (see dqn/dqn_agent.py)
+    agent = DQNAgent(q, q_target, num_actions=5, epsilon = 0.5)
 
-    train_online(env, agent, num_episodes=1000, history_length=1)
+    train_online(env, agent, num_episodes=10, history_length=1)

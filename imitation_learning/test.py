@@ -18,6 +18,7 @@ def run_episode(env, agent, rendering=True, max_timesteps=1000):
 
     state, _ = env.reset()
 
+
     if rendering:
         # Gymnasium CarRacing uses pygame backend; render once after reset
         # to initialize/display a valid first frame.
@@ -26,7 +27,9 @@ def run_episode(env, agent, rendering=True, max_timesteps=1000):
     while True:
 
         # TODO: preprocess the state in the same way than in your preprocessing in train_agent.py
-        #    state = ...
+        # print ("Before Preprocess-", np.max(state))
+        state = np.expand_dims(rgb2gray(state)/ 255.0, axis=0)
+        # print ("After Preprocess-", np.max(state))
 
         # TODO: get the action from your agent! You need to transform the discretized actions to continuous
         # actions.
@@ -34,8 +37,8 @@ def run_episode(env, agent, rendering=True, max_timesteps=1000):
         #       - the action array fed into env.step() needs to have a shape like np.array([0.0, 0.0, 0.0])
         #       - just in case your agent misses the first turn because it is too fast: you are allowed to clip the acceleration in test_agent.py
         #       - you can use the softmax output to calculate the amount of lateral acceleration
-        # a = ...
-
+        a = agent.predict(state).cpu().numpy().squeeze()
+        print (a)
         next_state, r, terminated, truncated, _ = env.step(a)
         episode_reward += r
         state = next_state
@@ -58,8 +61,8 @@ if __name__ == "__main__":
     n_test_episodes = 15  # number of episodes to test
 
     # TODO: load agent
-    # agent = BCAgent(...)
-    # agent.load("models/bc_agent.pt")
+    agent = BCAgent(lr=1e-4)
+    agent.load("models/agent.pt")
 
     env = gym.make("CarRacing-v3", render_mode="human")
 

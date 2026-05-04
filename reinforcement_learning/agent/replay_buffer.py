@@ -5,7 +5,6 @@ import numpy as np
 class ReplayBuffer:
 
     # TODO: implement a capacity for the replay buffer (FIFO, capacity: 1e5 - 1e6)
-
     # Replay buffer for experience replay. Stores transitions.
     def __init__(self):
         self._data = namedtuple(
@@ -14,6 +13,9 @@ class ReplayBuffer:
         self._data = self._data(
             states=[], actions=[], next_states=[], rewards=[], dones=[]
         )
+
+        self.size = 0
+        self.max_size = 1e6
 
     def add_transition(self, state, action, next_state, reward, done):
         """
@@ -24,6 +26,15 @@ class ReplayBuffer:
         self._data.next_states.append(next_state)
         self._data.rewards.append(reward)
         self._data.dones.append(done)
+
+        if (self.size == self.max_size) :
+            self._data.states.pop(0)
+            self._data.actions.pop(0)
+            self._data.next_states.pop(0)
+            self._data.rewards.pop(0)
+            self._data.dones.pop(0)
+        else :
+            self.size += 1
 
     def next_batch(self, batch_size):
         """
@@ -42,3 +53,4 @@ class ReplayBuffer:
             batch_rewards,
             batch_dones,
         )
+

@@ -41,6 +41,8 @@ def run_episode(
             env.render()
 
         if terminated or truncated or step > max_timesteps:
+            print ("Episode Ended - #",step)
+            print (terminated, truncated, step>max_timesteps)
             break
 
         step += 1
@@ -66,7 +68,14 @@ def train_online(
         stats=["train/episode_reward", "train/a_0", "train/a_1"],
     )
 
+    tensorboard_eval = Evaluation(
+        tensorboard_dir,
+        "CartPole",
+        stats=["eval/episode_reward", "eval/a_0", "eval/a_1"],
+    )
+
     # training
+    best_eval_reward = 0
     for i in range(num_episodes):
         print("episode: ", i)
         stats = run_episode(env, agent, deterministic=False, do_training=True)
@@ -82,13 +91,29 @@ def train_online(
         # TODO: evaluate your agent every 'eval_cycle' episodes using run_episode(env, agent, deterministic=True, do_training=False) to
         # check its performance with greedy actions only. You can also use tensorboard to plot the mean episode reward.
         # ...
-        # if i % eval_cycle == 0:
-        #    for j in range(num_eval_episodes):
-        #       ...
+        if i % eval_cycle == 0:
+           sum_eval_reward = 0
+           for j in range(num_eval_episodes):
+                ep_stats = run_episode(env, agent, deterministic=True, do_training=False)
+                sum_eval_reward += ep_stats.episode_reward
+                tensorboard_eval.write_episode_data(
+                    i,
+                    eval_dict={
+                        "eval/episode_reward": ep_stats.episode_reward,
+                        "eval/a_0": ep_stats.get_action_usage(0),
+                        "eval/a_1": ep_stats.get_action_usage(1),
+                    },
+                )
+        #store best eval model
+        if i % eval_cycle == 0 and sum_eval_reward > best_eval_reward:
+            print ("New Best eval reward - ", sum_eval_reward, best_eval_reward)
+            best_eval_reward = sum_eval_reward
+            agent.save(os.path.join(model_dir, "dqn_agent_cartpole_besteval.pt"))
 
         # store model.
         if i % eval_cycle == 0 or i >= (num_episodes - 1):
             agent.save(os.path.join(model_dir, "dqn_agent_cartpole.pt"))
+        
 
     tensorboard.close_session()
 
@@ -109,5 +134,9 @@ if __name__ == "__main__":
 
     # TODO:
     # 1. init Q network and target network (see dqn/networks.py)
+    q = MLP(state_dim=4, action_dim=2)
+    q_target = MLP(state_dim=4, action_dim=2)
     # 2. init DQNAgent (see dqn/dqn_agent.py)
+    dqnAgent = DQNAgent(q, q_target, num_actions)
     # 3. train DQN agent with train_online(...)
+    train_online(env, dqnAgent, num_episodes=200)

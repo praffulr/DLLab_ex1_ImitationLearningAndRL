@@ -6,4 +6,5 @@ tensorboard==2.20.0
 matplotlib==3.10.8
 protobuf==7.34.1
 pyglet==2.1.14
-blackcheck
+black
+setuptools==81.0
