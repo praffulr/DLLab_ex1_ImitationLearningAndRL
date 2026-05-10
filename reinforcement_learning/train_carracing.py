@@ -1,6 +1,6 @@
 # export DISPLAY=:0
 
-# import pyglet
+# import pygletµ
 # pyglet.options["headless"] = True
 
 import sys
@@ -14,7 +14,7 @@ from utils import EpisodeStats, rgb2gray
 from utils import *
 from agent.dqn_agent import DQNAgent
 
-from agent.networks import CNN
+from agent.networks import *
 
 
 def run_episode(
@@ -26,6 +26,8 @@ def run_episode(
     rendering=False,
     max_timesteps=1000,
     history_length=1,
+    episode = 0,
+    num_episodes = 1000
 ):
     """
     This methods runs one episode for a gym environment.
@@ -59,11 +61,9 @@ def run_episode(
         # Left - 2
         # Gas - 3
         #Brake - 4
-
-        action_id = agent.act(state, deterministic=False)
-
-
-        action = id_to_action(action_id, max_speed=0.8)
+        action_usage = [0.1,0.15,0.15,0.3,0.3]
+        action_id = agent.act(state, deterministic=deterministic, episode = episode, num_episodes = num_episodes, action_usage = action_usage)
+        action = id_to_action(action_id, max_speed=0.7, max_brake=0.3)
 
         # Hint: frame skipping might help you to get better results.
         reward = 0
@@ -81,6 +81,8 @@ def run_episode(
         image_hist.append(next_state)
         image_hist.pop(0)
         next_state = np.array(image_hist)
+        print ("State shape -",state.shape)
+        print ("Next State Shape -", next_state.shape)
 
         if do_training:
             agent.train(state, action_id, next_state, reward, terminated or truncated)
@@ -105,6 +107,7 @@ def train_online(
     max_timesteps=1000,
     model_dir="./models",
     tensorboard_dir="./tensorboard",
+    rendering = False
 ):
 
     if not os.path.exists(model_dir):
@@ -135,13 +138,23 @@ def train_online(
         print("epsiode %d" % i)
 
         # Hint: you can keep the episodes short in the beginning by changing max_timesteps (otherwise the car will spend most of the time out of the track)
-
+        if i<=20:
+            max_timesteps = 100
+        elif i<=50:
+            max_timesteps = 300
+        else:
+            max_timesteps = 1000
         stats = run_episode(
             env,
             agent,
             max_timesteps=max_timesteps,
             deterministic=False,
             do_training=True,
+            skip_frames=1,
+            episode = i,
+            num_episodes = num_episodes,
+            history_length=history_length,
+            rendering=True
         )
 
         tensorboard.write_episode_data(
@@ -169,6 +182,9 @@ def train_online(
                     max_timesteps=max_timesteps,
                     deterministic=True,
                     do_training=False,
+                    skip_frames=1,
+                    history_length=history_length,
+                    rendering=True
                 )
                 sum_eval_reward += stats.episode_reward
                 tensorboard.write_episode_data(
@@ -183,14 +199,18 @@ def train_online(
                     },
                 )
             #store best eval model
+            print ("New Best eval reward - ", sum_eval_reward, best_eval_reward)
             if sum_eval_reward > best_eval_reward:
-                print ("New Best eval reward - ", sum_eval_reward, best_eval_reward)
                 best_eval_reward = sum_eval_reward
                 agent.save(os.path.join(model_dir, "dqn_agent_carracing_besteval.pt"))
 
         # store model.
         if i % eval_cycle == 0 or (i >= num_episodes - 1):
             agent.save(os.path.join(model_dir, "dqn_agent_carracing.pt"))
+
+        #store checkpoint model
+        if i % 100 == 0 or (i >= num_episodes - 1):
+            agent.save(os.path.join(model_dir, f"dqn_agent_carracing_{i}_.pt"))
 
     tensorboard.close_session()
 
@@ -201,15 +221,29 @@ def state_preprocessing(state):
 
 if __name__ == "__main__":
 
+    #Hyper-Parameters
+    epsilon = 0.3
+    tau = 0.1
+    gamma = 0.98
+
+
     num_eval_episodes = 5
     eval_cycle = 20
+    rendering = False
+    history_length = 5
+    num_episodes = 1000
+    max_timesteps = 1000
+    lr = 1e-4
+    model_dir = "./models/RL/"
 
-    env = gym.make("CarRacing-v3", render_mode="rgb_array")
+    if rendering:
+        env = gym.make("CarRacing-v3", render_mode="human")
+    else:
+        env = gym.make("CarRacing-v3", render_mode="rgb_array")
 
     # TODO: Define Q network, target network and DQN agent
-    q = CNN()
-    q_target = CNN()
+    q = CNN2(history_length=history_length)
+    q_target = CNN2(history_length=history_length)
     # 2. init DQNAgent (see dqn/dqn_agent.py)
-    agent = DQNAgent(q, q_target, num_actions=5, epsilon = 0.5)
-
-    train_online(env, agent, num_episodes=10, history_length=1)
+    agent = DQNAgent(q, q_target, num_actions=5, epsilon = epsilon, gamma=gamma, tau=tau, lr=lr)
+    train_online(env, agent, num_episodes=num_episodes, history_length=history_length, max_timesteps=max_timesteps, rendering=True, model_dir = model_dir)

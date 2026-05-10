@@ -11,17 +11,24 @@ np.random.seed(0)
 
 if __name__ == "__main__":
 
-    env = gym.make("CartPole-v1", render_mode="human")
+    rendering = False
+
+    if rendering:
+        env = gym.make("CartPole-v1", render_mode="human")
+    else:
+        env = gym.make("CartPole-v1", render_mode="rgb_array")
 
     # TODO: load DQN agent
     q = MLP(state_dim=4, action_dim=2)
     q_target = MLP(state_dim=4, action_dim=2)
     agent = DQNAgent(q, q_target, 2)
-    model_dir = "./models"
+    model_dir = "./models/RL/Cartpole/"
+    # model_dir = "./models/"
 
     for model in {"dqn_agent_cartpole.pt", "dqn_agent_cartpole_besteval.pt"}:
         agent.load(os.path.join(model_dir, model))
-        n_test_episodes = 15
+        print(model)
+        n_test_episodes = 10
 
         episode_rewards = []
         for i in range(n_test_episodes):

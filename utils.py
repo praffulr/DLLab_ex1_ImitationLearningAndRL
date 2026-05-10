@@ -32,9 +32,42 @@ def action_to_id(a):
         return BRAKE  # BRAKE: 4
     else:
         return STRAIGHT  # STRAIGHT = 0
+    
+def action_to_id(a):
+    """
+    this method discretizes the actions.
+    Important: this method only works if you recorded data pressing only one key at a time!
+    """
+    if all(a == [-1.0, 0.0, 0.0]):
+        return LEFT  # LEFT: 2
+    elif all(a == [1.0, 0.0, 0.0]):
+        return RIGHT  # RIGHT: 1
+    elif all(a == [0.0, 1.0, 0.0]):
+        return ACCELERATE  # ACCELERATE: 3
+    elif all(a == [0.0, 0.0, 0.2]):
+        return BRAKE  # BRAKE: 4
+    else:
+        return STRAIGHT  # STRAIGHT = 0
 
 
-def id_to_action(action_id, max_speed=0.8):
+def action_to_id_custom(a):
+    """
+    this method discretizes the actions.
+    Important: Trying to make this work even with multiple presses
+    """
+    if a[0] == -1:
+        return LEFT  # LEFT: 2
+    elif a[0] == 1:
+        return RIGHT  # RIGHT: 1
+    elif a[1] == 1:
+        return ACCELERATE  # ACCELERATE: 3
+    elif a[2] == 0.2:
+        return BRAKE  # BRAKE: 4
+    else:
+        return STRAIGHT  # STRAIGHT = 0
+
+
+def id_to_action(action_id, max_speed=0.8, max_brake =0.1):
     """
     this method makes actions continous.
     Important: this method only works if you recorded data pressing only one key at a time!
@@ -42,13 +75,13 @@ def id_to_action(action_id, max_speed=0.8):
     a = np.array([0.0, 0.0, 0.0])
 
     if action_id == LEFT:
-        return np.array([-1.0, 0.0, 0.05])
+        return np.array([-1.0, 0.0, 0.1])
     elif action_id == RIGHT:
-        return np.array([1.0, 0.0, 0.05])
+        return np.array([1.0, 0.0, 0.1])
     elif action_id == ACCELERATE:
         return np.array([0.0, max_speed, 0.0])
     elif action_id == BRAKE:
-        return np.array([0.0, 0.0, 0.1])
+        return np.array([0.0, 0.0, max_brake])
     else:
         return np.array([0.0, 0.0, 0.0])
     

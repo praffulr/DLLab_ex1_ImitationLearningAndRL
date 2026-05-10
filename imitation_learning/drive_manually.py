@@ -25,6 +25,23 @@ def get_action_from_keyboard():
     brake = 0.2 if keys[pygame.K_DOWN] else 0.0
     return np.array([steering, gas, brake], dtype=np.float32)
 
+def get_action_from_keyboard_custom(max_speed=0.8, max_brake=0.2):
+    """
+    This method gets the action from the keyboard.
+    It returns the action as a numpy array.
+    The action is a tuple of (steering, gas, brake).
+    The steering is a value between -1.0 and 1.0.
+    The gas is a value between 0.0 and 1.0.
+    The brake is a value between 0.0 and 1.0.
+    """
+    pygame.event.pump()
+    keys = pygame.key.get_pressed()
+    steering = -1.0 if keys[pygame.K_LEFT] else (1.0 if keys[pygame.K_RIGHT] else 0.0)
+    gas = max_speed if keys[pygame.K_UP] else 0.0
+    brake = max_brake if keys[pygame.K_DOWN] else 0.0
+    return np.array([steering, gas, brake], dtype=np.float32)
+
+
 
 def store_data(data, datasets_dir="./data"):
     # save data

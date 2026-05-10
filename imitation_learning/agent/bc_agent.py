@@ -1,28 +1,26 @@
 import torch
-from agent.networks import CNN
+from agent.networks import CNN0, CNN1, CNN2
 
 def convert (nparray):
     device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-    return torch.tensor(nparray, dtype= torch.float32).to(device)
+    return torch.tensor(nparray).to(device)
 
 class BCAgent:
 
-    def __init__(self, lr):
+    def __init__(self, lr, history_length):
         # TODO: Define network, loss function, optimizer
         self.device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-        self.net = CNN(history_length=0, n_classes=3).to(self.device)
-        self.loss_function = torch.nn.MSELoss()
+        self.net = CNN2(history_length=history_length, n_classes=5).to(self.device)
+        self.loss_function = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
         # pass
 
     def update(self, X_batch, y_batch):
         # TODO: transform input to tensors
         # Transforming input into tensors
-
         X_batch =  convert(X_batch)
         y_batch = convert(y_batch)
-        # print(X_batch.dtype)
-        # X_batch = torch.from_numpy(X_batch)
+
         # TODO: forward + backward + optimize
         # Forward pass
         y_predictions = self.net(X_batch)

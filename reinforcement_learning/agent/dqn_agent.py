@@ -21,7 +21,7 @@ class DQNAgent:
         num_actions,
         gamma=0.95,
         batch_size=64,
-        epsilon=0.25,
+        epsilon=0.1,
         tau=0.01,
         lr=1e-4,
         history_length=0,
@@ -43,6 +43,7 @@ class DQNAgent:
         # setup networks
         # self.Q = Q.cuda()
         # self.Q_target = Q_target.cuda()
+
         self.device = 'mps' if torch.backends.mps.is_available() else 'cpu'
         self.Q = Q.to(self.device)
         self.Q_target = Q_target.to(self.device)
@@ -57,7 +58,8 @@ class DQNAgent:
         self.tau = tau
         self.epsilon = epsilon
 
-        self.loss_function = torch.nn.MSELoss()
+        # self.loss_function = torch.nn.MSELoss()
+        self.loss_function = torch.nn.HuberLoss()
         self.optimizer = optim.Adam(self.Q.parameters(), lr=lr)
 
         self.num_actions = num_actions
@@ -89,13 +91,18 @@ class DQNAgent:
 
         #Estimates
         action_ids = batch_actions.unsqueeze(dim=1).to(torch.int64)
-        q_values = self.Q(batch_states)
+        # print ("In DQN Train -",batch_states.shape)
+        q_values = self.Q(batch_states.float())
         # print ("Q_values shape - ", q_values.shape)
         # print ("Batch_actions shape - ", batch_actions.shape)
         # print ("Action_ids shape - ", action_ids.shape)
         # estimates = q_values[:, batch_actions]
         # print ("Estimates shape - ", estimates.shape)
+        # print ("Action IDs - ", action_ids)
+        # print ("Q values - ", q_values)
+
         estimates = torch.gather(input = q_values, dim = 1, index = action_ids).squeeze()
+
 
 
         #Targets
@@ -112,7 +119,7 @@ class DQNAgent:
         soft_update(self.Q_target, self.Q, self.tau)
 
 
-    def act(self, state, deterministic):
+    def act(self, state, deterministic, episode, num_episodes, action_usage=None):
         """
         This method creates an epsilon-greedy policy based on the Q-function approximator and epsilon (probability to select a random action)
         Args:
@@ -121,23 +128,35 @@ class DQNAgent:
         Returns:
             action id
         """
+
+        decaying_epsilon = self.epsilon*(1-episode/num_episodes)
         r = np.random.uniform()
-        if deterministic or r > self.epsilon:
+        if deterministic or r > decaying_epsilon :
             pass
             # TODO: take greedy action (argmax)
-            action_vals = self.Q(torch.from_numpy(state).to(self.device))
+            with torch.no_grad():
+                action_vals = self.Q(torch.from_numpy(np.expand_dims(state, 0)).to(self.device))
             action_id = torch.argmax(action_vals).item()
             # print ("Greedy action vals - ", action_vals)
-            print ("Greedy action_id - ", action_id)
+            # print ("Greedy action_id - ", action_id)
 
         else:
-            pass
+            # pass
             # TODO: sample random action
             # Hint for the exploration in CarRacing: sampling the action from a uniform distribution will probably not work.
             # You can sample the agents actions with different probabilities (need to sum up to 1) so that the agent will prefer to accelerate or going straight.
             # To see how the agent explores, turn the rendering in the training on and look what the agent is doing.
-            action_id = np.random.randint(low=0, high= self.num_actions)
-            print ("Random action_id - ", action_id)
+            #Uniform Sampling
+            # action_id = np.random.randint(low=0, high= self.num_actions)
+            #Weighted Sampling
+            # print ("Action usage in ep #",episode," is ", action_usage)
+            if action_usage is None:
+                #Uniformly random sampling
+                action_id = np.random.randint(low=0, high= self.num_actions)
+            else:
+                #Weighted Sampling
+                action_id = np.random.choice(self.num_actions, p=action_usage)
+            # print ("Random action_id - ", action_id)
 
         return action_id
 

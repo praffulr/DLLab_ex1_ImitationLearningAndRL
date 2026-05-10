@@ -13,7 +13,7 @@ from utils import EpisodeStats
 
 
 def run_episode(
-    env, agent, deterministic, do_training=True, rendering=False, max_timesteps=1000
+    env, agent, deterministic, do_training=True, rendering=False, max_timesteps=1000 ,episode = 0, num_episodes=1000
 ):
     """
     This methods runs one episode for a gym environment.
@@ -25,9 +25,9 @@ def run_episode(
     state, _ = env.reset()
 
     step = 0
-    while True:
-
-        action_id = agent.act(state=state, deterministic=deterministic)
+    while True: 
+        action_id = agent.act(state=state, deterministic=deterministic, episode=episode, num_episodes=num_episodes)
+        # action_id = agent.act(state=state, deterministic=deterministic)
         next_state, reward, terminated, truncated, info = env.step(action_id)
 
         if do_training:
@@ -42,7 +42,6 @@ def run_episode(
 
         if terminated or truncated or step > max_timesteps:
             print ("Episode Ended - #",step)
-            print (terminated, truncated, step>max_timesteps)
             break
 
         step += 1
@@ -54,7 +53,7 @@ def train_online(
     env,
     agent,
     num_episodes,
-    model_dir="./models",
+    model_dir="./models/RL/Cartpole/",
     tensorboard_dir="./tensorboard",
 ):
     if not os.path.exists(model_dir):
@@ -65,20 +64,14 @@ def train_online(
     tensorboard = Evaluation(
         tensorboard_dir,
         "CartPole",
-        stats=["train/episode_reward", "train/a_0", "train/a_1"],
-    )
-
-    tensorboard_eval = Evaluation(
-        tensorboard_dir,
-        "CartPole",
-        stats=["eval/episode_reward", "eval/a_0", "eval/a_1"],
+        stats=["train/episode_reward", "train/a_0", "train/a_1", "eval/episode_reward", "eval/a_0", "eval/a_1"],
     )
 
     # training
     best_eval_reward = 0
     for i in range(num_episodes):
         print("episode: ", i)
-        stats = run_episode(env, agent, deterministic=False, do_training=True)
+        stats = run_episode(env, agent, deterministic=False, do_training=True, episode=i, num_episodes=num_episodes)
         tensorboard.write_episode_data(
             i,
             eval_dict={
@@ -92,11 +85,12 @@ def train_online(
         # check its performance with greedy actions only. You can also use tensorboard to plot the mean episode reward.
         # ...
         if i % eval_cycle == 0:
-           sum_eval_reward = 0
-           for j in range(num_eval_episodes):
+            sum_eval_reward = 0
+            for j in range(num_eval_episodes):
                 ep_stats = run_episode(env, agent, deterministic=True, do_training=False)
                 sum_eval_reward += ep_stats.episode_reward
-                tensorboard_eval.write_episode_data(
+                print ("Eval ep reward -", ep_stats.episode_reward)
+                tensorboard.write_episode_data(
                     i,
                     eval_dict={
                         "eval/episode_reward": ep_stats.episode_reward,
@@ -104,15 +98,18 @@ def train_online(
                         "eval/a_1": ep_stats.get_action_usage(1),
                     },
                 )
-        #store best eval model
-        if i % eval_cycle == 0 and sum_eval_reward > best_eval_reward:
-            print ("New Best eval reward - ", sum_eval_reward, best_eval_reward)
-            best_eval_reward = sum_eval_reward
-            agent.save(os.path.join(model_dir, "dqn_agent_cartpole_besteval.pt"))
+            #store best eval model
+            print ("This eval reward & Best eval reward - ", sum_eval_reward, best_eval_reward)
+            if sum_eval_reward > best_eval_reward:
+                best_eval_reward = sum_eval_reward
+                agent.save(os.path.join(model_dir, "dqn_agent_cartpole_besteval.pt"))
 
         # store model.
         if i % eval_cycle == 0 or i >= (num_episodes - 1):
             agent.save(os.path.join(model_dir, "dqn_agent_cartpole.pt"))
+        #store checkpoint model
+        if i % 100 == 0 or (i >= num_episodes - 1):
+            agent.save(os.path.join(model_dir, f"dqn_agent_cartpole_{i}_.pt"))
         
 
     tensorboard.close_session()
@@ -120,8 +117,16 @@ def train_online(
 
 if __name__ == "__main__":
 
+
+    #Hyperparameters
+    epsilon = 0.3
+    gamma = 0.95
+    tau = 0.05
+    lr = 1e-5
+
     num_eval_episodes = 5  # evaluate on 5 episodes
     eval_cycle = 20  # evaluate every 10 episodes
+    num_episodes = 1000
 
     # You find information about cartpole in
     # https://gymnasium.farama.org/environments/classic_control/cart_pole/
@@ -137,6 +142,7 @@ if __name__ == "__main__":
     q = MLP(state_dim=4, action_dim=2)
     q_target = MLP(state_dim=4, action_dim=2)
     # 2. init DQNAgent (see dqn/dqn_agent.py)
+    # dqnAgent = DQNAgent(q, q_target, num_actions, epsilon=epsilon, tau=tau, lr=lr, gamma = gamma)
     dqnAgent = DQNAgent(q, q_target, num_actions)
     # 3. train DQN agent with train_online(...)
-    train_online(env, dqnAgent, num_episodes=200)
+    train_online(env, dqnAgent, num_episodes=num_episodes)

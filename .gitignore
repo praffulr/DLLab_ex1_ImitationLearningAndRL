@@ -1,1 +1,6 @@
-.DS*
+.DS_Store
+./results/*
+./tensor*
+./data*
+./__pycache__*
+./DLL_26_IL_RL*
